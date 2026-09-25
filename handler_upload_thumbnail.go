@@ -1,15 +1,11 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
 	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
 	"github.com/google/uuid"
@@ -56,6 +52,9 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	filePath := getAssetPath(mediaType)
+	fileDiskPath := cfg.getAssetDiskPAth(filePath)
+
 	videoData, err := cfg.db.GetVideo(videoID)
 	if err != nil {
 		respondWithError(w, http.StatusBadRequest, "Could not access video data", err)
@@ -66,12 +65,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	fileFormat := strings.Split(mediaType, "/")[1]
-	fileNameRandomized := make([]byte, 32)
-	rand.Read(fileNameRandomized)
-	fileName := base64.RawURLEncoding.EncodeToString(fileNameRandomized)
-	filePath := filepath.Join(cfg.assetsRoot, fmt.Sprintf("%s.%s", fileName, fileFormat))
-	thumbnailFile, err := os.Create(filePath)
+	thumbnailFile, err := os.Create(fileDiskPath)
 	if err != nil {
 		respondWithError(w, http.StatusInsufficientStorage, "Could not store thumbnail", err)
 		return
@@ -82,7 +76,7 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	thumbnailUrl := fmt.Sprintf("http://localhost:%s/assets/%s.%s", cfg.port, fileName, fileFormat)
+	thumbnailUrl := cfg.getAssetURL(filePath)
 	videoData.ThumbnailURL = &thumbnailUrl
 	err = cfg.db.UpdateVideo(videoData)
 	if err != nil {

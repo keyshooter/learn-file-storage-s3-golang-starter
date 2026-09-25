@@ -1,11 +1,12 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
+	"crypto/rand"
+	"encoding/base64"
+	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
+	"strings"
 )
 
 type FFProbeOutput struct {
@@ -99,54 +100,33 @@ func (cfg apiConfig) ensureAssetsDir() error {
 	return nil
 }
 
-func (cfg apiConfig) getVideoAspectRation(filePath string) (string, error) {
-	cmd := exec.Command("ffprobe", "-v", "error", "-print_format", "json", "-show_streams", filePath)
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	err := cmd.Run()
+func getAssetPath(mediaType string) string {
+	fileNameRandomized := make([]byte, 32)
+	_, err := rand.Read(fileNameRandomized)
 	if err != nil {
-		return "", nil
+		panic("failed to generate random bytes")
 	}
-
-	var body FFProbeOutput
-	err = json.Unmarshal(out.Bytes(), &body)
-	if err != nil {
-		return "", err
-	}
-
-	if len(body.Streams) == 0 {
-		return "", errors.New("failed to parse video metadata")
-	}
-
-	videoData := body.Streams[0]
-	ratio := videoData.Width / videoData.Height
-
-	if ratio == 1 {
-		return "16:9", nil
-	} else if ratio == 0 {
-		return "9:16", nil
-	}
-	return "other", nil
+	fileName := base64.RawURLEncoding.EncodeToString(fileNameRandomized)
+	extension := mediaTypeToExtension(mediaType)
+	return fmt.Sprintf("%s%s", fileName, extension)
 }
 
-func (cfg apiConfig) processVideoForFastStart(filePath string) (string, error) {
-	outputFilePath := filePath + ".processing"
-	cmd := exec.Command(
-		"ffmpeg",
-		"-i",
-		filePath,
-		"-c",
-		"copy",
-		"-movflags",
-		"faststart",
-		"-f",
-		"mp4",
-		outputFilePath,
-	)
-
-	err := cmd.Run()
-	if err != nil {
-		return "", err
+func mediaTypeToExtension(mediaType string) string {
+	parts := strings.Split(mediaType, "/")
+	if len(parts) != 2 {
+		return ".bin"
 	}
-	return outputFilePath, nil
+	return "." + parts[1]
+}
+
+func (cfg apiConfig) getObjectURL(key string) string {
+	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", cfg.s3Bucket, cfg.s3Region, key)
+}
+
+func (cfg apiConfig) getAssetDiskPAth(assetPath string) string {
+	return filepath.Join(cfg.assetsRoot, assetPath)
+}
+
+func (cfg apiConfig) getAssetURL(assetPath string) string {
+	return fmt.Sprintf("http://localhost:%s/assets/%s", cfg.port, assetPath)
 }
