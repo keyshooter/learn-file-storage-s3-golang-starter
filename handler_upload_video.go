@@ -86,6 +86,19 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	processedFilePath, err := cfg.processVideoForFastStart(tempFile.Name())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to process video", err)
+		return
+	}
+
+	processedFile, err := os.Open(processedFilePath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Unable to open processed video", err)
+		return
+	}
+	defer processedFile.Close()
+
 	aspectRatio, err := cfg.getVideoAspectRation(tempFile.Name())
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Unable to know video ratio", err)
@@ -109,7 +122,7 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 	_, err = cfg.s3Client.PutObject(r.Context(), &s3.PutObjectInput{
 		Bucket:      &bucket,
 		Key:         &fileName,
-		Body:        tempFile,
+		Body:        processedFile,
 		ContentType: &mediaType,
 	})
 	if err != nil {
