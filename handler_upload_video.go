@@ -133,11 +133,5 @@ func (cfg *apiConfig) handlerUploadVideo(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	videoData, err = cfg.dbVideoToSignedVideo(videoData)
-	if err != nil {
-		respondWithError(w, http.StatusBadRequest, "Unable to fetch video data", err)
-		return
-	}
-
 	respondWithJSON(w, http.StatusOK, videoData)
 }
